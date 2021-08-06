@@ -1,6 +1,11 @@
 -- 6
 isPalindrome :: (Eq a) => [a] -> Bool
-isPalindrome xs = xs == reverse xs
+isPalindrome xs =
+    case xs of
+        [] -> True
+        [_] -> True
+        x:xs -> (x == last xs) && isPalindrome (init xs)
+
 testIsPalindrome :: Bool
 testIsPalindrome =
     not (isPalindrome [1,2,3])
@@ -15,8 +20,9 @@ testFlatten =
     flatten (Elem 5) == [5]
     && flatten (List [Elem 1, List [Elem 2, List [Elem 3, Elem 4], Elem 5]]) == [1, 2, 3, 4, 5]
     && null (flatten (List []))
+
 flatten :: NestedList a -> [a]
-flatten xs = 
+flatten xs =
     case xs of
         List [] -> []
         Elem x -> [x]
@@ -29,12 +35,14 @@ testDeduplicate =
     deduplicate "aaaabccaadeeee" == "abcade"
     && deduplicate [0, 1, 0, 0, 0, 0, 1, 1] == [0, 1, 0, 1]
     && null (deduplicate ([] :: [Integer]))
+
 deduplicate :: (Eq a) => [a] -> [a]
 deduplicate xs =
     case xs of
         [] -> []
+        [x] -> [x]
         (x:xs) ->
-            if not (null xs) && x == head xs then -- why doesn't this fail sometimes on the empty list?
+            if x == head xs then
                 deduplicate xs
             else
                 x : deduplicate xs
