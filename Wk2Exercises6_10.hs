@@ -1,3 +1,5 @@
+module Wk2Exercises6_10 where
+
 -- 6
 isPalindrome :: (Eq a) => [a] -> Bool
 isPalindrome xs =
