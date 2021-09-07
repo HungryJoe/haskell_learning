@@ -7,7 +7,7 @@ testDropEvery =
     && ['a'..'z'] `dropEvery` 4 == "abcefgijkmnoqrsuvwyz"
     && null ([] `dropEvery` 1000)
 dropEvery :: Integral b => [a] -> b -> [a]
-dropEvery xs freq = [x | (x, i) <- zip xs [1..], i `mod` freq /= 0]
+dropEvery xs freq = [x | (x, i) <- zip xs (cycle [1..freq]), i /= freq]
 
 -- 17
 testSplit :: Bool
