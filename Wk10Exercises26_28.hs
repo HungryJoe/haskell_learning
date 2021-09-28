@@ -6,15 +6,20 @@ import qualified Data.Set as Set
 -- 26, take 2
 combinations :: (Eq a, Ord a) => Int -> [a] -> [[a]]
 combinations 1 list = map (:[]) list
-combinations k list = nubBy combEqual $ genPerms 0
-    where addNext i comb = comb ++ [(list \\ comb) !! i]
-          combEqual xs ys = and $ zipWith (==) (sort xs) (sort ys)
-          recur = combinations (k - 1) list
+combinations k list
+    | k == n = [list]
+    | otherwise = nubBy combEqual $ genPerms 0
+    where combEqual xs ys = and $ zipWith (==) (sort xs) (sort ys)
           n = length list
           genPerms i
-            | i > (n - k) = []
-            | otherwise = map (addNext i) recur ++ genPerms (i + 1)
+              | i > (n - k) = []
+              | otherwise = map (addNext i) (combinations (k - 1) list) ++ genPerms (i + 1)
+              where addNext i comb = (list \\ comb) !! i : comb
 
+-- Favorite solution from the Solutions page
+combinations' 1 list = map (:[]) list
+combinations' _ [] = [[]]
+combinations' k (x:xs) = map (x:) (combinations' (k - 1) xs) ++ combinations' k xs
 
 numCombinations :: Int -> Int -> Int
 numCombinations n k = product [(n - k + 1)..n] `div` fac k
@@ -46,5 +51,4 @@ sortLen = sortOn length
 sortLenFreq :: (Ord a) => [[a]] -> [[a]]
 sortLenFreq nestedList = sortOn (flip Map.lookup freqMap . length) nestedList
     where freqMap = Map.fromSet groupLen $ Set.fromList (map length nestedList)
-          groupLen len = length $ filter filterLen nestedList
-              where filterLen list = len == length list
+          groupLen len = length $ filter ((len ==) . length) nestedList
