@@ -37,10 +37,13 @@ group234 list = foldr folder [] $ combinations 2 list
           genGroups comb = map addEndLists $ combinations 3 $ list \\ comb
               where addEndLists comb3 = [comb, comb3, (list \\ comb) \\ comb3]
 -- b
-groupXYZ :: (Eq a, Ord a) => (Int, Int, Int) -> [a] -> [[[a]]]
-groupXYZ (x, y, z) list = foldr folder [] $ combinations x list
-    where folder comb acc = concatMap (addNextGroups z) (addNextGroups y [comb]) ++ acc
-          addNextGroups k combs = map (: combs) $ combinations k $ foldr (flip (\\)) list combs
+groupList :: (Eq a, Ord a) => [Int] -> [a] -> [[[a]]]
+groupList [] _ = [[]]
+groupList _ [] = [[]]
+groupList xs list = foldl folder [[]] xs
+    where folder listOfPartialDisjointedLists k = concatMap genNextGroups listOfPartialDisjointedLists
+            where genNextGroups partialDisjointedList = map (:partialDisjointedList) $ combinations k listRemainder
+                    where listRemainder = foldr (flip (\\)) list partialDisjointedList
 
 
 -- 28
