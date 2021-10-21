@@ -30,4 +30,4 @@ testAreCoprime :: Bool
 testAreCoprime = areCoprime 5 3 && areCoprime 35 64 && not (areCoprime 44 55) && not (areCoprime 100 50)
 
 areCoprime :: Int -> Int -> Bool
-areCoprime a = (1 ==) . gcd' a
+areCoprime a b = gcd' a b == 1
