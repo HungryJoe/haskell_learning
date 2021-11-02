@@ -22,10 +22,13 @@ parseArgs args = allFalseToAllTrue $ foldl go Args{doWords=False, doLines=False,
               path = if null path then parsedPath else path
           }
               where Args{doWords=parsedWords, doLines=parsedLines, doBytes=parsedBytes, path=parsedPath} = parseArg arg
-          parseArg "-w" = Args{doWords=True, doLines=False, doBytes=False, path=""}
-          parseArg "-l" = Args{doWords=False, doLines=True, doBytes=False, path=""}
-          parseArg "-c" = Args{doWords=False, doLines=False, doBytes=True, path=""}
+          parseArg ('-':flags) = parseFlags flags Args{doWords=False, doLines=False, doBytes=False, path=""}
           parseArg path = Args{doWords=False, doLines=False, doBytes=False, path=path}
+          parseFlags [] args = args
+          parseFlags ('w':flags) Args{doWords=_, doLines=lines, doBytes=bytes, path=path} = parseFlags flags Args{doWords=True, doLines=lines, doBytes=bytes, path=path}
+          parseFlags ('l':flags) Args{doWords=words, doLines=_, doBytes=bytes, path=path} = parseFlags flags Args{doWords=words, doLines=True, doBytes=bytes, path=path}
+          parseFlags ('c':flags) Args{doWords=words, doLines=lines, doBytes=_, path=path} = parseFlags flags Args{doWords=words, doLines=lines, doBytes=True, path=path}
+          parseFlags (nonFlag:flags) args = error $ "Illegal option -- " ++ [nonFlag]
           -- Preserve the utility of OR as the folding function for the flags while making default behavior match `wc`
           allFalseToAllTrue Args{doWords=words', doLines=lines', doBytes=bytes', path=path'}
             | not words' && not lines' && not bytes' = Args{doWords=True, doLines=True, doBytes=True, path=path'}
