@@ -25,14 +25,14 @@ parseArgs args = allFalseToAllTrue $ foldl go Args{doWords=False, doLines=False,
           parseArg ('-':flags) = parseFlags flags Args{doWords=False, doLines=False, doBytes=False, path=""}
           parseArg path = Args{doWords=False, doLines=False, doBytes=False, path=path}
           parseFlags [] args = args
-          parseFlags ('w':flags) Args{doWords=_, doLines=lines, doBytes=bytes, path=path} = parseFlags flags Args{doWords=True, doLines=lines, doBytes=bytes, path=path}
-          parseFlags ('l':flags) Args{doWords=words, doLines=_, doBytes=bytes, path=path} = parseFlags flags Args{doWords=words, doLines=True, doBytes=bytes, path=path}
-          parseFlags ('c':flags) Args{doWords=words, doLines=lines, doBytes=_, path=path} = parseFlags flags Args{doWords=words, doLines=lines, doBytes=True, path=path}
+          parseFlags ('w':flags) args = parseFlags flags args{doWords=True}
+          parseFlags ('l':flags) args = parseFlags flags args{doLines=True}
+          parseFlags ('c':flags) args = parseFlags flags args{doBytes=True}
           parseFlags (nonFlag:flags) args = error $ "Illegal option -- " ++ [nonFlag]
           -- Preserve the utility of OR as the folding function for the flags while making default behavior match `wc`
-          allFalseToAllTrue Args{doWords=words', doLines=lines', doBytes=bytes', path=path'}
-            | not words' && not lines' && not bytes' = Args{doWords=True, doLines=True, doBytes=True, path=path'}
-            | otherwise = Args{doWords=words', doLines=lines', doBytes=bytes', path=path'}
+          allFalseToAllTrue args@Args{doWords=words, doLines=lines, doBytes=bytes, path=path}
+            | not words && not lines && not bytes = args{doWords=True, doLines=True, doBytes=True}
+            | otherwise = args
 
 addLines :: Bool -> Text.Text -> String
 addLines flag contents
