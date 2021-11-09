@@ -1,14 +1,20 @@
-import qualified Data.Text.IO as TextIO
 import qualified Data.Text as Text
+import Data.Text.Encoding
 import qualified Data.ByteString as ByteString
+import System.IO.Error
 import System.Environment
 
-main = do
+main = catchIOError ioStuff handleError
+
+ioStuff = do
     args <- getArgs
     let Args{doWords=doWords, doLines=doLines, doBytes=doBytes, path=filePath} = parseArgs args
-    fileContentsText <- TextIO.readFile filePath
     fileContentsByteString <- ByteString.readFile filePath
-    putStrLn $ addLines doLines fileContentsText ++ addWords doWords fileContentsText ++ addBytes doBytes fileContentsByteString ++ filePath
+    let fileContentsText = decodeUtf8 fileContentsByteString
+    putStrLn $ addLines doLines fileContentsText ++
+               addWords doWords fileContentsText ++
+               addBytes doBytes fileContentsByteString ++
+               filePath
 
 
 data Args = Args{doWords :: Bool, doLines :: Bool, doBytes :: Bool, path :: FilePath}
@@ -48,4 +54,7 @@ addBytes :: Bool -> ByteString.ByteString -> String
 addBytes flag contents
     | flag = show (ByteString.length contents) ++ "\t"
     | otherwise = ""
-    
+
+-- Embiggen to handle errors in useful ways
+handleError :: IOError -> IO ()
+handleError err = putStrLn "Oopsie"
