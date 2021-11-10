@@ -1,33 +1,32 @@
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Text.Encoding
-import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Char8 as Char8
 import System.IO.Error
 import System.Environment
 
 main = do
     args <- getArgs
     let Args{doWords=doWords, doLines=doLines, doBytes=doBytes, paths=filePaths} = parseArgs args
-    fileContentsBS <- mapM ByteString.readFile filePaths
-    let fileContentsText = map decodeUtf8 fileContentsBS
-    mapM_ (summarizeFile doLines doWords doBytes) (zip3 fileContentsBS fileContentsText filePaths)
+    fileContentsBS <- mapM Char8.readFile filePaths
+    mapM_ (summarizeFile doLines doWords doBytes) (zip fileContentsBS filePaths)
     if length filePaths > 1 then do
-        putStrLn $ summarizeAll doLines doWords doBytes fileContentsBS fileContentsText
+        putStrLn $ summarizeAll doLines doWords doBytes fileContentsBS
     else do
         putStr ""
 
 
-summarizeAll :: Bool -> Bool -> Bool -> [ByteString.ByteString] -> [Text.Text] -> String
-summarizeAll doLines doWords doBytes fileContentsBS fileContentsText
-    | doLines = show (sum $ map computeLines fileContentsText) ++ "\t" ++ summarizeAll False doWords doBytes fileContentsBS fileContentsText
-    | doWords = show (sum $ map computeWords fileContentsText) ++ "\t" ++ summarizeAll False False doBytes fileContentsBS fileContentsText
-    | doBytes = show (sum $ map computeBytes fileContentsBS) ++ "\t" ++ summarizeAll False False False fileContentsBS fileContentsText
+summarizeAll :: Bool -> Bool -> Bool -> [Char8.ByteString] -> String
+summarizeAll doLines doWords doBytes fileContentsBS
+    | doLines = show (sum $ map computeLines fileContentsBS) ++ "\t" ++ summarizeAll False doWords doBytes fileContentsBS
+    | doWords = show (sum $ map computeWords fileContentsBS) ++ "\t" ++ summarizeAll False False doBytes fileContentsBS 
+    | doBytes = show (sum $ map computeBytes fileContentsBS) ++ "\t" ++ summarizeAll False False False fileContentsBS
     | otherwise = "total"
 
-summarizeFile :: Bool -> Bool -> Bool -> (ByteString.ByteString, Text.Text, FilePath) -> IO ()
-summarizeFile doLines doWords doBytes (fileContentsBS, fileContentsText, filePath) = do
-    putStrLn $ formatStatText doLines fileContentsText computeLines ++
-               formatStatText doWords fileContentsText computeWords ++
+summarizeFile :: Bool -> Bool -> Bool -> (Char8.ByteString, FilePath) -> IO ()
+summarizeFile doLines doWords doBytes (fileContentsBS, filePath) = do
+    putStrLn $ formatStatBS doLines fileContentsBS computeLines ++
+               formatStatBS doWords fileContentsBS computeWords ++
                formatStatBS doBytes fileContentsBS computeBytes ++
                filePath
 
@@ -54,21 +53,16 @@ parseArgs args = allFalseToAllTrue $ foldl go Args{doWords=False, doLines=False,
             | not words && not lines && not bytes = args{doWords=True, doLines=True, doBytes=True}
             | otherwise = args
 
-computeLines :: Text.Text -> Int
-computeLines = length . Text.lines
+computeLines :: Char8.ByteString -> Int
+computeLines = length . Char8.lines
     
-computeWords :: Text.Text -> Int
-computeWords = length . Text.words
+computeWords :: Char8.ByteString -> Int
+computeWords = length . Char8.words
     
-computeBytes :: ByteString.ByteString -> Int
-computeBytes = ByteString.length
+computeBytes :: Char8.ByteString -> Int
+computeBytes = Char8.length
 
-formatStatBS :: Bool -> ByteString.ByteString -> (ByteString.ByteString -> Int) -> String
+formatStatBS :: Bool -> Char8.ByteString -> (Char8.ByteString -> Int) -> String
 formatStatBS flag contents summarize
-    | flag = show (summarize contents) ++ "\t"
-    | otherwise = ""
-
-formatStatText :: Bool -> Text.Text -> (Text.Text -> Int) -> String
-formatStatText flag contents summarize
     | flag = show (summarize contents) ++ "\t"
     | otherwise = ""
