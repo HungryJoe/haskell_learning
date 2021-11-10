@@ -10,17 +10,22 @@ main = do
     let Args{doWords=doWords, doLines=doLines, doBytes=doBytes, paths=filePaths} = parseArgs args
     fileContentsBS <- mapM ByteString.readFile filePaths
     let fileContentsText = map decodeUtf8 fileContentsBS
-    mapM_ (processFile doLines doWords doBytes) (zip3 fileContentsBS fileContentsText filePaths)
+    mapM_ (summarizeFile doLines doWords doBytes) (zip3 fileContentsBS fileContentsText filePaths)
     if length filePaths > 1 then do
-        putStr $ show (sum $ map computeLines fileContentsText) ++ "\t"
-        putStr $ show (sum $ map computeWords fileContentsText) ++ "\t"
-        putStrLn $ show (sum $ map computeBytes fileContentsBS) ++ "\ttotal"
+        putStrLn $ summarizeAll doLines doWords doBytes fileContentsBS fileContentsText
     else do
         putStr ""
 
 
-processFile :: Bool -> Bool -> Bool -> (ByteString.ByteString, Text.Text, FilePath) -> IO ()
-processFile doLines doWords doBytes (fileContentsBS, fileContentsText, filePath) = do
+summarizeAll :: Bool -> Bool -> Bool -> [ByteString.ByteString] -> [Text.Text] -> String
+summarizeAll doLines doWords doBytes fileContentsBS fileContentsText
+    | doLines = show (sum $ map computeLines fileContentsText) ++ "\t" ++ summarizeAll False doWords doBytes fileContentsBS fileContentsText
+    | doWords = show (sum $ map computeWords fileContentsText) ++ "\t" ++ summarizeAll False False doBytes fileContentsBS fileContentsText
+    | doBytes = show (sum $ map computeBytes fileContentsBS) ++ "\t" ++ summarizeAll False False False fileContentsBS fileContentsText
+    | otherwise = "total"
+
+summarizeFile :: Bool -> Bool -> Bool -> (ByteString.ByteString, Text.Text, FilePath) -> IO ()
+summarizeFile doLines doWords doBytes (fileContentsBS, fileContentsText, filePath) = do
     putStrLn $ formatStatText doLines fileContentsText computeLines ++
                formatStatText doWords fileContentsText computeWords ++
                formatStatBS doBytes fileContentsBS computeBytes ++
