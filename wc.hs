@@ -1,4 +1,5 @@
 import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
 import Data.Text.Encoding
 import qualified Data.ByteString as ByteString
 import System.IO.Error
@@ -7,16 +8,22 @@ import System.Environment
 main = do
     args <- getArgs
     let Args{doWords=doWords, doLines=doLines, doBytes=doBytes, paths=filePaths} = parseArgs args
-    mapM (processFile doLines doWords doBytes) filePaths
+    fileContentsBS <- mapM ByteString.readFile filePaths
+    let fileContentsText = map decodeUtf8 fileContentsBS
+    mapM_ (processFile doLines doWords doBytes) (zip3 fileContentsBS fileContentsText filePaths)
+    if length filePaths > 1 then do
+        putStr $ show (sum $ map computeLines fileContentsText) ++ "\t"
+        putStr $ show (sum $ map computeWords fileContentsText) ++ "\t"
+        putStrLn $ show (sum $ map computeBytes fileContentsBS) ++ "\ttotal"
+    else do
+        putStr ""
 
 
-processFile :: Bool -> Bool -> Bool -> FilePath -> IO ()
-processFile doLines doWords doBytes filePath = do
-    fileContentsByteString <- ByteString.readFile filePath
-    let fileContentsText = decodeUtf8 fileContentsByteString
-    putStrLn $ addLines doLines fileContentsText ++
-               addWords doWords fileContentsText ++
-               addBytes doBytes fileContentsByteString ++
+processFile :: Bool -> Bool -> Bool -> (ByteString.ByteString, Text.Text, FilePath) -> IO ()
+processFile doLines doWords doBytes (fileContentsBS, fileContentsText, filePath) = do
+    putStrLn $ formatStatText doLines fileContentsText computeLines ++
+               formatStatText doWords fileContentsText computeWords ++
+               formatStatBS doBytes fileContentsBS computeBytes ++
                filePath
 
 data Args = Args{doWords :: Bool, doLines :: Bool, doBytes :: Bool, paths :: [FilePath]}
@@ -42,17 +49,21 @@ parseArgs args = allFalseToAllTrue $ foldl go Args{doWords=False, doLines=False,
             | not words && not lines && not bytes = args{doWords=True, doLines=True, doBytes=True}
             | otherwise = args
 
-addLines :: Bool -> Text.Text -> String
-addLines flag contents
-    | flag = show (length $ Text.lines contents) ++ "\t"
-    | otherwise = ""
+computeLines :: Text.Text -> Int
+computeLines = length . Text.lines
     
-addWords :: Bool -> Text.Text -> String
-addWords flag contents
-    | flag = show (length $ Text.words contents) ++ "\t"
-    | otherwise = ""
+computeWords :: Text.Text -> Int
+computeWords = length . Text.words
     
-addBytes :: Bool -> ByteString.ByteString -> String
-addBytes flag contents
-    | flag = show (ByteString.length contents) ++ "\t"
+computeBytes :: ByteString.ByteString -> Int
+computeBytes = ByteString.length
+
+formatStatBS :: Bool -> ByteString.ByteString -> (ByteString.ByteString -> Int) -> String
+formatStatBS flag contents summarize
+    | flag = show (summarize contents) ++ "\t"
+    | otherwise = ""
+
+formatStatText :: Bool -> Text.Text -> (Text.Text -> Int) -> String
+formatStatText flag contents summarize
+    | flag = show (summarize contents) ++ "\t"
     | otherwise = ""
