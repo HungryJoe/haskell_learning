@@ -8,7 +8,7 @@ import System.Environment
 main = do
     args <- getArgs
     let Args{doWords=doWords, doLines=doLines, doBytes=doBytes, paths=filePaths} = parseArgs args
-    fileContentsBS <- mapM Char8.readFile filePaths
+    fileContentsBS <- mapM (flip catchIOError handleError . Char8.readFile) filePaths
     mapM_ (summarizeFile doLines doWords doBytes) (zip fileContentsBS filePaths)
     if length filePaths > 1 then do
         putStrLn $ summarizeAll doLines doWords doBytes fileContentsBS
@@ -66,3 +66,10 @@ formatStatBS :: Bool -> Char8.ByteString -> (Char8.ByteString -> Int) -> String
 formatStatBS flag contents summarize
     | flag = show (summarize contents) ++ "\t"
     | otherwise = ""
+
+handleError :: IOError -> IO Char8.ByteString
+handleError err = do
+    putStrLn $  fileName (ioeGetFileName err) ++ ioeGetErrorString err
+    return $ Char8.pack ""
+    where fileName Nothing = ""
+          fileName (Just name) = name ++ " "
