@@ -8,12 +8,16 @@ import System.Environment
 main = do
     args <- getArgs
     let Args{doWords=doWords, doLines=doLines, doBytes=doBytes, paths=filePaths} = parseArgs args
-    fileContentsBS <- mapM (flip catchIOError handleError . Char8.readFile) filePaths
-    mapM_ (summarizeFile doLines doWords doBytes) (zip fileContentsBS filePaths)
-    if length filePaths > 1 then do
-        putStrLn $ summarizeAll doLines doWords doBytes fileContentsBS
+    if not $ null filePaths then do
+        fileContentsBS <- mapM (flip catchIOError handleError . Char8.readFile) filePaths
+        mapM_ (summarizeFile doLines doWords doBytes) (zip fileContentsBS filePaths)
+        if length filePaths > 1 then do
+            putStrLn $ summarizeAll doLines doWords doBytes fileContentsBS
+        else do
+            putStr ""
     else do
-        putStr ""
+        stdinContents <- Char8.getContents
+        summarizeFile doLines doWords doBytes (stdinContents, "")
 
 
 summarizeAll :: Bool -> Bool -> Bool -> [Char8.ByteString] -> String
