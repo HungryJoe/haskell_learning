@@ -24,11 +24,12 @@ main = do
 
 summarizeAll :: Bool -> Bool -> CharOpts -> [Char8.ByteString] -> [Text.Text] -> String
 summarizeAll doLines doWords doChars fileContentsBS fileContentsText
-    | doLines = show (sum $ map computeLines fileContentsBS) ++ "\t" ++ summarizeAll False doWords doChars fileContentsBS fileContentsText
-    | doWords = show (sum $ map computeWords fileContentsBS) ++ "\t" ++ summarizeAll False False doChars fileContentsBS  fileContentsText
-    | doChars == Bytes = show (sum $ map computeBytes fileContentsBS) ++ "\t" ++ summarizeAll False False NoChars fileContentsBS fileContentsText
-    | doChars == TextChars = show (sum $ map computeTextChars fileContentsText) ++ "\t" ++ summarizeAll False False NoChars fileContentsBS fileContentsText
+    | doLines = show (sum $ map computeLines fileContentsBS) ++ "\t" ++ next False doWords doChars
+    | doWords = show (sum $ map computeWords fileContentsBS) ++ "\t" ++ next False False doChars
+    | doChars == Bytes = show (sum $ map computeBytes fileContentsBS) ++ "\t" ++ next False False NoChars
+    | doChars == TextChars = show (sum $ map computeTextChars fileContentsText) ++ "\t" ++ next False False NoChars
     | otherwise = "total"
+    where next doLines' doWords' doChars' = summarizeAll doLines' doWords' doChars' fileContentsBS fileContentsText
 
 summarizeFile :: Bool -> Bool -> CharOpts -> (Char8.ByteString, Text.Text, FilePath) -> IO ()
 summarizeFile doLines doWords doChars (fileContentsBS, fileContentsText, filePath) = do
