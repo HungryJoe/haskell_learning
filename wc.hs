@@ -7,54 +7,55 @@ import System.Environment
 
 main = do
     args <- getArgs
-    let Args{doWords=doWords, doLines=doLines, doBytes=doBytes, paths=filePaths} = parseArgs args
+    let Args{doWords=doWords, doLines=doLines, doChars=doChars, paths=filePaths} = parseArgs args
     if not $ null filePaths then do
         fileContentsBS <- mapM (flip catchIOError handleError . Char8.readFile) filePaths
-        mapM_ (summarizeFile doLines doWords doBytes) (zip fileContentsBS filePaths)
+        mapM_ (summarizeFile doLines doWords doChars) (zip fileContentsBS filePaths)
         if length filePaths > 1 then do
-            putStrLn $ summarizeAll doLines doWords doBytes fileContentsBS
+            putStrLn $ summarizeAll doLines doWords doChars fileContentsBS
         else do
             putStr ""
     else do
         stdinContents <- Char8.getContents
-        summarizeFile doLines doWords doBytes (stdinContents, "")
+        summarizeFile doLines doWords doChars (stdinContents, "")
 
 
-summarizeAll :: Bool -> Bool -> Bool -> [Char8.ByteString] -> String
-summarizeAll doLines doWords doBytes fileContentsBS
-    | doLines = show (sum $ map computeLines fileContentsBS) ++ "\t" ++ summarizeAll False doWords doBytes fileContentsBS
-    | doWords = show (sum $ map computeWords fileContentsBS) ++ "\t" ++ summarizeAll False False doBytes fileContentsBS 
-    | doBytes = show (sum $ map computeBytes fileContentsBS) ++ "\t" ++ summarizeAll False False False fileContentsBS
+summarizeAll :: Bool -> Bool -> CharOpts -> [Char8.ByteString] -> String
+summarizeAll doLines doWords doChars fileContentsBS
+    | doLines = show (sum $ map computeLines fileContentsBS) ++ "\t" ++ summarizeAll False doWords doChars fileContentsBS
+    | doWords = show (sum $ map computeWords fileContentsBS) ++ "\t" ++ summarizeAll False False doChars fileContentsBS 
+    | doChars == Bytes = show (sum $ map computeBytes fileContentsBS) ++ "\t" ++ summarizeAll False False NoChars fileContentsBS
     | otherwise = "total"
 
-summarizeFile :: Bool -> Bool -> Bool -> (Char8.ByteString, FilePath) -> IO ()
-summarizeFile doLines doWords doBytes (fileContentsBS, filePath) = do
+summarizeFile :: Bool -> Bool -> CharOpts -> (Char8.ByteString, FilePath) -> IO ()
+summarizeFile doLines doWords doChars (fileContentsBS, filePath) = do
     putStrLn $ formatStatBS doLines fileContentsBS computeLines ++
                formatStatBS doWords fileContentsBS computeWords ++
-               formatStatBS doBytes fileContentsBS computeBytes ++
+               formatStatBS (doChars == Bytes) fileContentsBS computeBytes ++
                filePath
 
-data Args = Args{doWords :: Bool, doLines :: Bool, doBytes :: Bool, paths :: [FilePath]}
+data CharOpts = TextChars | Bytes | NoChars deriving Eq
+data Args = Args{doWords :: Bool, doLines :: Bool, doChars :: CharOpts, paths :: [FilePath]}
 parseArgs :: [String] -> Args
-parseArgs args = allFalseToAllTrue $ foldl go Args{doWords=False, doLines=False, doBytes=False, paths=[]} args
+parseArgs args = allFalseToAllTrue $ foldl go Args{doWords=False, doLines=False, doChars=NoChars, paths=[]} args
     where go :: Args -> String -> Args
-          go Args{doWords=words, doLines=lines, doBytes=bytes, paths=paths} arg = Args{
+          go Args{doWords=words, doLines=lines, doChars=chars, paths=paths} arg = Args{
               doWords = words || parsedWords,
               doLines = lines || parsedLines,
-              doBytes = bytes || parsedBytes,
+              doChars = if parsedChars == NoChars then chars else parsedChars,
               paths = paths ++ parsedPath
           }
-              where Args{doWords=parsedWords, doLines=parsedLines, doBytes=parsedBytes, paths=parsedPath} = parseArg arg
-          parseArg ('-':flags) = parseFlags flags Args{doWords=False, doLines=False, doBytes=False, paths=[]}
-          parseArg path = Args{doWords=False, doLines=False, doBytes=False, paths=[path]}
+              where Args{doWords=parsedWords, doLines=parsedLines, doChars=parsedChars, paths=parsedPath} = parseArg arg
+          parseArg ('-':flags) = parseFlags flags Args{doWords=False, doLines=False, doChars=NoChars, paths=[]}
+          parseArg path = Args{doWords=False, doLines=False, doChars=NoChars, paths=[path]}
           parseFlags [] args = args
           parseFlags ('w':flags) args = parseFlags flags args{doWords=True}
           parseFlags ('l':flags) args = parseFlags flags args{doLines=True}
-          parseFlags ('c':flags) args = parseFlags flags args{doBytes=True}
+          parseFlags ('c':flags) args = parseFlags flags args{doChars=Bytes}
           parseFlags (nonFlag:flags) args = error $ "Illegal option -- " ++ [nonFlag]
           -- Preserve the utility of OR as the folding function for the flags while making default behavior match `wc`
-          allFalseToAllTrue args@Args{doWords=words, doLines=lines, doBytes=bytes, paths=_}
-            | not words && not lines && not bytes = args{doWords=True, doLines=True, doBytes=True}
+          allFalseToAllTrue args@Args{doWords=words, doLines=lines, doChars=chars, paths=_}
+            | not words && not lines && chars == NoChars = args{doWords=True, doLines=True, doChars=Bytes}
             | otherwise = args
 
 computeLines :: Char8.ByteString -> Int
