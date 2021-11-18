@@ -10,28 +10,32 @@ main = do
     let Args{doWords=doWords, doLines=doLines, doChars=doChars, paths=filePaths} = parseArgs args
     if not $ null filePaths then do
         fileContentsBS <- mapM (flip catchIOError handleError . Char8.readFile) filePaths
-        mapM_ (summarizeFile doLines doWords doChars) (zip fileContentsBS filePaths)
+        let fileContentsText = map decodeUtf8 fileContentsBS
+        mapM_ (summarizeFile doLines doWords doChars) (zip3 fileContentsBS fileContentsText filePaths)
         if length filePaths > 1 then do
-            putStrLn $ summarizeAll doLines doWords doChars fileContentsBS
+            putStrLn $ summarizeAll doLines doWords doChars fileContentsBS fileContentsText
         else do
             putStr ""
     else do
-        stdinContents <- Char8.getContents
-        summarizeFile doLines doWords doChars (stdinContents, "")
+        stdinContentsBytes <- Char8.getContents
+        let stdinContentsText = decodeUtf8 stdinContentsBytes
+        summarizeFile doLines doWords doChars (stdinContentsBytes, stdinContentsText, "")
 
 
-summarizeAll :: Bool -> Bool -> CharOpts -> [Char8.ByteString] -> String
-summarizeAll doLines doWords doChars fileContentsBS
-    | doLines = show (sum $ map computeLines fileContentsBS) ++ "\t" ++ summarizeAll False doWords doChars fileContentsBS
-    | doWords = show (sum $ map computeWords fileContentsBS) ++ "\t" ++ summarizeAll False False doChars fileContentsBS 
-    | doChars == Bytes = show (sum $ map computeBytes fileContentsBS) ++ "\t" ++ summarizeAll False False NoChars fileContentsBS
+summarizeAll :: Bool -> Bool -> CharOpts -> [Char8.ByteString] -> [Text.Text] -> String
+summarizeAll doLines doWords doChars fileContentsBS fileContentsText
+    | doLines = show (sum $ map computeLines fileContentsBS) ++ "\t" ++ summarizeAll False doWords doChars fileContentsBS fileContentsText
+    | doWords = show (sum $ map computeWords fileContentsBS) ++ "\t" ++ summarizeAll False False doChars fileContentsBS  fileContentsText
+    | doChars == Bytes = show (sum $ map computeBytes fileContentsBS) ++ "\t" ++ summarizeAll False False NoChars fileContentsBS fileContentsText
+    | doChars == TextChars = show (sum $ map computeTextChars fileContentsText) ++ "\t" ++ summarizeAll False False NoChars fileContentsBS fileContentsText
     | otherwise = "total"
 
-summarizeFile :: Bool -> Bool -> CharOpts -> (Char8.ByteString, FilePath) -> IO ()
-summarizeFile doLines doWords doChars (fileContentsBS, filePath) = do
+summarizeFile :: Bool -> Bool -> CharOpts -> (Char8.ByteString, Text.Text, FilePath) -> IO ()
+summarizeFile doLines doWords doChars (fileContentsBS, fileContentsText, filePath) = do
     putStrLn $ formatStatBS doLines fileContentsBS computeLines ++
                formatStatBS doWords fileContentsBS computeWords ++
                formatStatBS (doChars == Bytes) fileContentsBS computeBytes ++
+               formatStatText (doChars == TextChars) fileContentsText computeTextChars ++
                filePath
 
 data CharOpts = TextChars | Bytes | NoChars deriving Eq
@@ -52,6 +56,7 @@ parseArgs args = allFalseToAllTrue $ foldl go Args{doWords=False, doLines=False,
           parseFlags ('w':flags) args = parseFlags flags args{doWords=True}
           parseFlags ('l':flags) args = parseFlags flags args{doLines=True}
           parseFlags ('c':flags) args = parseFlags flags args{doChars=Bytes}
+          parseFlags ('m':flags) args = parseFlags flags args{doChars=TextChars}
           parseFlags (nonFlag:flags) args = error $ "Illegal option -- " ++ [nonFlag]
           -- Preserve the utility of OR as the folding function for the flags while making default behavior match `wc`
           allFalseToAllTrue args@Args{doWords=words, doLines=lines, doChars=chars, paths=_}
@@ -67,8 +72,16 @@ computeWords = length . Char8.words
 computeBytes :: Char8.ByteString -> Int
 computeBytes = Char8.length
 
+computeTextChars :: Text.Text -> Int
+computeTextChars = Text.length
+
 formatStatBS :: Bool -> Char8.ByteString -> (Char8.ByteString -> Int) -> String
 formatStatBS flag contents summarize
+    | flag = show (summarize contents) ++ "\t"
+    | otherwise = ""
+
+formatStatText :: Bool -> Text.Text -> (Text.Text -> Int) -> String
+formatStatText flag contents summarize
     | flag = show (summarize contents) ++ "\t"
     | otherwise = ""
 
