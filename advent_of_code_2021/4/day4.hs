@@ -42,8 +42,9 @@ parseFile file = (parseDraws (head lines'), parseBoards (tail lines') [])
 
 parseBoards :: [String] -> [BingoBoard] -> [BingoBoard]
 parseBoards [] boards = boards
-parseBoards ("":one:two:three:four:five:otherBoards) prevBoards = parseBoards otherBoards (BingoBoard [parseLine one, parseLine two, parseLine three, parseLine four, parseLine five] : prevBoards)
-    where parseLine line = map (bsFromInt . read) (words line)
+parseBoards ("":one:two:three:four:five:otherBoards) prevBoards = parseBoards otherBoards (parsedBoard : prevBoards)
+    where parsedBoard = BingoBoard [parseLine one, parseLine two, parseLine three, parseLine four, parseLine five]
+          parseLine line = map (bsFromInt . read) (words line)
           bsFromInt x = BingoSquare{marked=False, value=x}
 parseBoards rest boards = error $ "Failed parsing when boards was " ++ show boards ++ " and rest was " ++ show rest
 
