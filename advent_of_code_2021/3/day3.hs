@@ -54,17 +54,3 @@ findRating isO2 bitstrings = filterOnModeAt bitstrings 0
           findMode'
             | isO2 = findMode
             | otherwise = not . findMode
-
--- findRating' isO2 bitstrings = bitstrings !! recur (map (zip [0..]) (transpose bitstrings))
---     where recur :: [[(Int, Bool)]] -> Int
---           recur [] = error "Table is empty"
---           recur (col:cols)
---             | null col = error "Column is empty"
---             | length col == 1 = fst $ head col
---             | otherwise = recur [[(idx, bit) | (idx, bit) <- col', idx `elem` rowsInColWithMode col isO2] | col' <- cols]
--- 
--- rowsInColWithMode :: [(Int, Bool)] -> Bool -> [Int]
--- rowsInColWithMode col isO2 = [idx | (idx, bit) <- col, bit == findMode' (map snd col)]
---     where findMode'
---               | isO2 = findMode
---               | otherwise = not . findMode
