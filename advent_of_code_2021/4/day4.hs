@@ -42,17 +42,17 @@ parseFile file = (parseDraws (head lines'), parseBoards (tail lines') [])
 
 parseBoards :: [String] -> [BingoBoard] -> [BingoBoard]
 parseBoards [] boards = boards
-parseBoards ("":one:two:three:four:five:otherBoards) prevBoards = parseBoards otherBoards (BingoBoard [parseBoardLine one, parseBoardLine two, parseBoardLine three, parseBoardLine four, parseBoardLine five] : prevBoards)
-    where parseBoardLine line = map (bsFromInt . read) (words line)
+parseBoards ("":one:two:three:four:five:otherBoards) prevBoards = parseBoards otherBoards (BingoBoard [parseLine one, parseLine two, parseLine three, parseLine four, parseLine five] : prevBoards)
+    where parseLine line = map (bsFromInt . read) (words line)
           bsFromInt x = BingoSquare{marked=False, value=x}
 parseBoards rest boards = error $ "Failed parsing when boards was " ++ show boards ++ " and rest was " ++ show rest
 
 findNextWinner :: [BingoBoard] -> [Int] -> Maybe (Int, [BingoBoard], [BingoBoard], [Int])
 findNextWinner _ [] = Nothing
 findNextWinner boards (x:xs)
-    | not $ null winners = Just (x, map BingoBoard winners, markedBoards, xs)
+    | not $ null winners = Just (x, winners, markedBoards, xs)
     | otherwise = findNextWinner markedBoards xs
-    where winners = checkBoards (map deconstructBB markedBoards) []
+    where winners = map BingoBoard $ checkBoards (map deconstructBB markedBoards) []
           checkBoards [] winners = winners
           checkBoards (board:boards') winners
             | checkBoard board = checkBoards boards' $ board : winners
@@ -73,7 +73,7 @@ playToWin boards draws = (winningDraw, head winningBoard)
 playToLose :: [BingoBoard] -> [Int] -> (Int, [BingoBoard])
 playToLose boards draws = go boards draws []
     where go :: [BingoBoard] -> [Int] -> [(Int, [BingoBoard])] -> (Int, [BingoBoard])
-          go _ [] winners = head winners
+          go _ [] winners = error "Ran out of draws before finding the last winner"
           go [] _ winners = head winners
           go boards' draws' winners
             | isJust maybeWinner = go diffedBoards remainingDraws ((winningDraw, winningBoards) : winners)
