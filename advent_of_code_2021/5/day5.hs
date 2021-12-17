@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import System.Environment (getArgs)
@@ -43,11 +45,10 @@ generateFreqMap = fillMap (Set.empty :: Set.Set Point, Map.empty :: FrequencyMap
                     listYs = if y1 <= y2 then [y1..y2] else [y1, (y1 - 1)..y2]
                     lineSegment = map makePoint lineSegmentTups
                     lineSegmentTups
-                        | x1 == x2 = map (x1 `entuple`) listYs
-                        | y1 == y2 = map (`entuple` y1) listXs
+                        | x1 == x2 = map (x1,) listYs
+                        | y1 == y2 = map (,y1) listXs
                         | length listXs == length listYs = zip listXs listYs  -- Assume slope of 1
                         | otherwise = error $ "Invalid vector: " ++ show (x1,y1) ++ " " ++ show (x2, y2)
-                    entuple a b = (a,b)
           addPoints :: [Point] -> Set.Set Point -> FrequencyMap -> (Set.Set Point, FrequencyMap)
           addPoints [] keySet freqMap = (keySet, freqMap)
           addPoints (point:points) keySet freqMap
