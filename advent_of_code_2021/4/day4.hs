@@ -1,4 +1,3 @@
-import Data.Maybe (isJust, fromJust)
 import Data.List (transpose, delete)
 import System.Environment (getArgs)
 import qualified Data.Set as Set
@@ -7,82 +6,63 @@ import qualified Data.Set as Set
 main = do
     args <- getArgs
     file <- readFile (head args)
-    let (draws, boards) = parseFile file
-    let winner@(winningDraw, winningBoard) = playToWin boards draws
-    let solution1 = calculateScore winningDraw winningBoard
-    let (losingDraw, losingBoards) = playToLose boards draws
-    let solution2 = calculateScore losingDraw (head losingBoards)
-    print winner
+    let (draws, bingoLines) = parseFile file
+    let (winningDraw, winningBoardsUnmarkedSquares) = playToWin draws bingoLines
+    let (losingDraw, losingBoardsUnmarkedSquares) = playToLose draws bingoLines
+    let solution1 = calculateScore winningDraw winningBoardsUnmarkedSquares
+    let solution2 = calculateScore losingDraw losingBoardsUnmarkedSquares
     print solution1
-    print (losingDraw, losingBoards)
     print solution2
 
 
-newtype BingoBoard = BingoBoard [BingoLine] deriving Eq
-instance Show BingoBoard where
-    show (BingoBoard []) = "[]"
-    show (BingoBoard lines) = '[' : foldl showLine "" lines ++ "]"
-        where showLine acc line = acc ++ show line ++ ",\n"
-instance Ord BingoBoard where
-    compare (BingoBoard a) (BingoBoard b)
-        | a == b = EQ
-        | otherwise = head compareBBs 
-        where compareBBs = dropWhile (==EQ) $ zipWith compare a b
-deconstructBB :: BingoBoard -> [[BingoSquare]]
-deconstructBB (BingoBoard b) = b
-type BingoLine = [BingoSquare]
-data BingoSquare = BingoSquare{value :: Int, marked :: Bool} deriving (Eq, Ord)
-instance Show BingoSquare where
-    show BingoSquare{marked=m, value=v}= '(' : show m ++ ", " ++ show v ++ ")"
+type BingoBoard = [[Int]]
+data BingoLine = BingoLine{board :: Int, line :: [Int]} deriving Show
 
-parseFile :: String -> ([Int], [BingoBoard])
+parseFile :: String -> ([Int], [BingoLine])
 parseFile file = (parseDraws (head lines'), parseBoards (tail lines') [])
     where parseDraws draws = read (('[': draws) ++ "]") :: [Int]
           lines' = lines file
 
-parseBoards :: [String] -> [BingoBoard] -> [BingoBoard]
-parseBoards [] boards = boards
-parseBoards ("":one:two:three:four:five:otherBoards) prevBoards = parseBoards otherBoards (parsedBoard : prevBoards)
-    where parsedBoard = BingoBoard [parseLine one, parseLine two, parseLine three, parseLine four, parseLine five]
-          parseLine line = map (bsFromInt . read) (words line)
-          bsFromInt x = BingoSquare{marked=False, value=x}
+parseBoards :: [String] -> [BingoLine] -> [BingoLine]
+parseBoards [] bingoLines = bingoLines
+parseBoards ("":one:two:three:four:five:otherBoards) prevBingoLines = parseBoards otherBoards (parsedBingoLines ++ prevBingoLines)
+    where parsedBoard = [parseLine one, parseLine two, parseLine three, parseLine four, parseLine five]
+          parsedBingoLines = map (BingoLine $ length otherBoards) $ parsedBoard ++ transpose parsedBoard
+          parseLine line = map read (words line)
 parseBoards rest boards = error $ "Failed parsing when boards was " ++ show boards ++ " and rest was " ++ show rest
 
-findNextWinner :: [BingoBoard] -> [Int] -> Maybe (Int, [BingoBoard], [BingoBoard], [Int])
-findNextWinner _ [] = Nothing
-findNextWinner boards (x:xs)
-    | not $ null winners = Just (x, winners, markedBoards, xs)
-    | otherwise = findNextWinner markedBoards xs
-    where winners = map BingoBoard $ checkBoards (map deconstructBB markedBoards) []
-          checkBoards [] winners = winners
-          checkBoards (board:boards') winners
-            | checkBoard board = checkBoards boards' $ board : winners
-            | otherwise = checkBoards boards' winners
-          checkBoard board = checkRows board || checkCols board
-          checkRows = any (all marked)
-          checkCols = any (all marked) . transpose
-          markedBoards = map (BingoBoard . markBoard x . deconstructBB) boards
-          markBoard y = map (map $ updateSquare y)
-          updateSquare y square@BingoSquare{marked=marked, value=value}
-            | not marked && y == value = square{marked=True}
-            | otherwise = square
+-- @return the winning draw and the values left unmarked on the winning board(s)
+playToWin :: [Int] -> [BingoLine] -> (Int, [Set.Set Int])
+playToWin [] _ = error "Ran out of draws"
+playToWin (draw:draws) bingoLines
+    | not $ Set.null winningBoards = (draw, Set.toList $ Set.map (gatherUnmarkedSquaresForBoard updatedLines) winningBoards)
+    | otherwise = playToWin draws updatedLines
+    where winningBoards = findWinningBoards updatedLines
+          updatedLines = updateLines bingoLines draw
 
-playToWin :: [BingoBoard] -> [Int] -> (Int, BingoBoard)
-playToWin boards draws = (winningDraw, head winningBoard)
-    where (winningDraw, winningBoard, _, _) = fromJust $ findNextWinner boards draws
+-- @return the winning draw and the values left unmarked on the winning board(s)
+playToLose :: [Int] -> [BingoLine] -> (Int, [Set.Set Int])
+playToLose [] bingoLines = error $ "Ran out of draws with " ++ show bingoLines ++ " lines left"
+playToLose (draw:draws) bingoLines
+    | onlyOneBoard && not (Set.null winningBoards) = (draw, Set.toList $ Set.map (gatherUnmarkedSquaresForBoard updatedLines) winningBoards)
+    | otherwise = playToLose draws updatedLines
+    where winningBoards = findWinningBoards updatedLines
+          updatedLines = updateLines bingoLines draw
+          onlyOneBoard = Set.size (Set.fromList $ map board updatedLines) == 1
 
-playToLose :: [BingoBoard] -> [Int] -> (Int, [BingoBoard])
-playToLose boards draws = go boards draws []
-    where go :: [BingoBoard] -> [Int] -> [(Int, [BingoBoard])] -> (Int, [BingoBoard])
-          go _ [] winners = error "Ran out of draws before finding the last winner"
-          go [] _ winners = head winners
-          go boards' draws' winners
-            | isJust maybeWinner = go diffedBoards remainingDraws ((winningDraw, winningBoards) : winners)
-            | otherwise = go boards' [] winners
-            where maybeWinner = findNextWinner boards' draws'
-                  (winningDraw, winningBoards, markedBoards, remainingDraws) = fromJust maybeWinner
-                  diffedBoards = Set.toList $ Set.difference (Set.fromList markedBoards) (Set.fromList winningBoards)
+findWinningBoards :: [BingoLine] -> Set.Set Int
+findWinningBoards bingoLines = Set.fromList [board bLine | bLine <- bingoLines, null (line bLine)]
 
-calculateScore :: Int -> BingoBoard -> Int
-calculateScore draw board = draw * sumUnmarked
-          where sumUnmarked = sum [sum [value square | square <- line, not (marked square)] | line <- deconstructBB board]
+updateLines :: [BingoLine] -> Int -> [BingoLine]
+updateLines bingoLines draw = [removeDraw bingoLine | bingoLine <- bingoLines, not $ board bingoLine `Set.member` boardsThatWon]
+    where removeDraw bingoLine@BingoLine{board=_, line=l} = bingoLine{line = delete draw l}
+          boardsThatWon = Set.fromList $ [board bingoLine | bingoLine <- bingoLines, null $ line bingoLine]
+
+gatherUnmarkedSquaresForBoard :: [BingoLine] -> Int -> Set.Set Int
+gatherUnmarkedSquaresForBoard bingoLines boardId = foldl addLineToSet (Set.empty :: Set.Set Int) $ filter (hasBoard boardId) bingoLines
+    where hasBoard b bingoLine = b == board bingoLine
+          addLineToSet set bingoLine = set `Set.union` Set.fromList (line bingoLine)
+
+calculateScore :: Int -> [Set.Set Int] -> Int
+calculateScore draw [winnerUnmarked] = draw * Set.foldl (+) 0 winnerUnmarked
+calculateScore _ winnersUnmarked = error $ "Should be exactly one first/last winner, found " ++ show (length winnersUnmarked)
