@@ -10,12 +10,11 @@ main = do
     file <- readFile (head args)
     let parsedFile = parseFile file
     let solution = sum $ determineDisplayedValues parsedFile
-    print $ head parsedFile
     print solution
 
 
 data Segment = A | B | C | D | E | F | G deriving (Eq, Show, Ord, Read)
-type Digit = S.Set Segment
+type Digit = S.Set Segment  -- Solving the displays is done via set arithmetic
 
 parseFile :: String -> [([Digit], [Digit])]
 parseFile file = map parseLine $ lines file
@@ -23,16 +22,23 @@ parseFile file = map parseLine $ lines file
               where segmentedLine = segmentLine line
 segmentLine line = foldr addDigit [] $ words line
     where addDigit "|" digits = Nothing : digits
-          addDigit word digits = Just (S.fromList (map (read . (:[]) . toUpper) word)) : digits
+          addDigit word digits = Just (S.fromList (map readSegment word)) : digits
+          readSegment ch = read [toUpper ch]
 
 determineDisplayedValues :: [([Digit], [Digit])] -> [Int]
 determineDisplayedValues = map determineDisplayedValue
     where determineDisplayedValue (digits, display) = computeValue display $ solveDisplay digits
 
+-- We construct the map from digits to ints in three passes
+--  in order to leverage previously-mapped digits for later mappings.
+-- We also map from ints to digits initially for the same reason:
+--  While mapping, we know what ints we want but not what digits they represent;
+--      that situation reverses for parsing the displays.
 solveDisplay :: [Digit] -> M.Map Digit Int
 solveDisplay digits = invertMap $ passThree $ passTwo $ passOne digits
     where invertMap curMap = M.foldlWithKey (\newMap key val -> M.insert val key newMap) M.empty curMap
 
+-- Pass one deals only with digits that can be mapped without knowledge of any other mappings.
 passOne :: [Digit] -> (M.Map Int Digit, [Digit])
 passOne [] = (M.empty, [])
 passOne (digit:digits)
@@ -47,9 +53,9 @@ passOne (digit:digits)
 passTwo :: (M.Map Int Digit, [Digit]) -> (M.Map Int Digit, [Digit])
 passTwo (digMap, []) = (digMap, [])
 passTwo (digMap, digit:digits)
-    | S.size digit == 5 && M.member 1 recurMap && M.member 4 recurMap && passesTestFor 5 = insert 5
-    | S.size digit == 5 && M.member 1 recurMap && M.member 4 recurMap && M.member 7 recurMap && passesTestFor 2 = insert 2
-    | S.size digit == 5 && M.member 7 recurMap && passesTestFor 3 = insert 3
+    | S.size digit == 5 && passesTestFor 5 = insert 5
+    | S.size digit == 5 && passesTestFor 2 = insert 2
+    | S.size digit == 5 && passesTestFor 3 = insert 3
     | otherwise = (recurMap, digit:recurDigits)
     where (recurMap, recurDigits) = passTwo (digMap, digits)
           insert number = (M.insert number digit recurMap, recurDigits)
@@ -61,10 +67,12 @@ passTwo (digMap, digit:digits)
 passThree :: (M.Map Int Digit, [Digit]) -> M.Map Int Digit
 passThree (digMap, []) = digMap
 passThree (digMap, digit:digits)
-    | S.size digit == 6 && M.member 4 recursion && passesTestFor 9 = insert 9
-    | S.size digit == 6 && M.member 5 recursion && passesTestFor 0 = insert 0
-    | S.size digit == 6 && M.member 5 recursion && M.member 1 recursion && passesTestFor 6 = insert 6
-    | otherwise = error $ "Pass three encountered unfamiliar digit: " ++ show digit ++ "\nRemaining digits are: " ++ show digits ++ "\nMap looks like: " ++ show digMap
+    | S.size digit == 6 && passesTestFor 9 = insert 9
+    | S.size digit == 6 && passesTestFor 0 = insert 0
+    | S.size digit == 6 && passesTestFor 6 = insert 6
+    | otherwise = error $ "Pass three encountered unfamiliar digit: " ++
+                  show digit ++ "\nRemaining digits are: " ++
+                  show digits ++ "\nMap looks like: " ++ show digMap
     where recursion = passThree (digMap, digits)
           insert number = M.insert number digit recursion
           passesTestFor 9 = (recursion M.! 4) `S.isProperSubsetOf` digit
