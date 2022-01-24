@@ -31,5 +31,3 @@ simulateFishOneDay = M.foldlWithKey' stateTransition (M.empty :: Population)
           addTo :: Int -> Maybe Int -> Maybe Int
           addTo new (Just old) = Just (old + new)
           addTo new Nothing = Just new
-          zeroOut (Just _) = Just 0
-          zeroOut Nothing = Nothing
