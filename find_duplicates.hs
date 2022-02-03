@@ -1,4 +1,4 @@
-import Crypto.Hash.SHA256
+import qualified Crypto.Hash.SHA256 as H
 import qualified Data.ByteString as BS
 import System.Directory
 import Control.Monad
@@ -8,10 +8,16 @@ main = do
     workingDir <- getCurrentDirectory
     filePaths <- listFiles workingDir
     fileContents <- mapM BS.readFile filePaths
-    let pathsAndHashes = [(path, hash contents) | (contents, path) <- zip fileContents filePaths]
+    let pathsAndHashes = [(path, H.hash contents) | (contents, path) <- zip fileContents filePaths]
     let results = findDuplicates pathsAndHashes
-    print results
+    putStrLn $ showDuplicates results
 
+
+showDuplicates :: [[FilePath]] -> String
+showDuplicates [] = "No duplicates"
+showDuplicates lines = "Duplicates:\n" ++ concatMap showLine lines
+    where showLine paths = concatMap showPath (init paths) ++ last paths ++ "\n"
+          showPath path = path ++ ","
 
 listFiles :: FilePath -> IO [FilePath]
 listFiles path = do
