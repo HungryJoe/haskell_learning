@@ -1,3 +1,6 @@
 [submodule "haskell_regex_parser"]
 	path = haskell_regex_parser
 	url = gitlab@gitlab.nrao.edu:skagan/haskell_regex_parser
+[submodule "haskell_weasel_program"]
+	path = haskell_weasel_program
+	url = gitlab@gitlab.nrao.edu:skagan/haskell_weasel_program
