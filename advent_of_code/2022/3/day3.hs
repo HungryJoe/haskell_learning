@@ -3,18 +3,9 @@ import System.Environment (getArgs)
 import Data.Set (Set, fromList, intersection, union)
 import Data.Foldable (fold, Foldable (toList))
 import Control.Monad.List (foldM)
-import Data.List
 import qualified Data.Sequence (chunksOf, Seq, fromList)
 
 type Rucksack = (Set Int, Set Int)
-
-newtype SetIntersect a = SetIntersect {getSet :: Set a}
-instance (Ord a) => Semigroup (SetIntersect a) where
-    (<>) :: SetIntersect a -> SetIntersect a -> SetIntersect a
-    (<>) x y = SetIntersect $ getSet x `intersection` getSet y
-
-instance (Ord a) => Monoid (SetIntersect a) where
-    mempty = SetIntersect $ fromList []
 
 main = do
     args <- getArgs
@@ -42,7 +33,7 @@ findCommonPriorities :: [Rucksack] -> [Int]
 findCommonPriorities = map findCommonPriority
 
 findCommonPriorityN :: [Rucksack] -> Int
-findCommonPriorityN sacks = head $ toList $ getSet $ foldMap (SetIntersect . fold) sacks
+findCommonPriorityN sacks = head $ toList $ foldl1 intersection $ map (uncurry union) sacks
 
 findCommonPrioritiesN :: Int -> [Rucksack] -> [Int]
 findCommonPrioritiesN n sacks = map findCommonPriorityN $ nestedSeqToNestedList $ Data.Sequence.chunksOf n sacksSeq
