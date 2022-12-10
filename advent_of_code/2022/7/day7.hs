@@ -1,8 +1,9 @@
 import Data.Tree
-import Data.List (elemIndex)
+import Data.List (elemIndex, find)
 import Data.Maybe (fromJust)
 import Data.String (IsString(fromString))
 
+-- Assume that files of size 0 are directories
 data File = File{size :: Int, name :: String}
 data FileSystem = FileSystem{root :: Tree File, currDir :: [File]}
 type CommandBlock = [String]
@@ -19,7 +20,6 @@ parseFile lines' = root $ foldl treeFolder FileSystem{root=rootNode, currDir=[ro
           rootNode = Node{rootLabel=File{size=0,name="/"}, subForest=[]}
           treeFolder :: FileSystem -> CommandBlock -> FileSystem
           treeFolder fs ("ls":contents) = fs{root=updateCurrDirTree fs $ parseLS (getCurrDirTree fs) contents}
-          -- TODO: Figure out how to change roots while keeping track of the whole tree
           treeFolder fs ['c':'d':' ':arg] = fs{currDir=parseCD fs arg}
 
 parseLS :: Tree File -> [String] -> Tree File
@@ -34,7 +34,22 @@ parseEntry line = File {size=size, name=name}
             | otherwise = (read firstHalf, secondHalf)
 
 parseCD :: FileSystem -> String -> [File]
+parseCD fs@FileSystem {currDir=_currDir} ".." = tail _currDir
+-- Assume that a directory named `dir` exists in  `last _currDir`
+parseCD fs@FileSystem {root=_root, currDir=_currDir} childDir = _currDir ++ [rootLabel childDirTree]
+    where childDirTree = findTreeMatching File {size=0, name=childDir} $ subForest $ getCurrDirTree fs
 
-updateCurrDirrTree :: FileSystem -> Tree File -> Tree File
+getCurrDirTree :: FileSystem -> Tree File
+getCurrDirTree FileSystem {root=_root, currDir=_currDir} = go _root _currDir
+    where go currentRootTree@Node {rootLabel=_rootLabel, subForest=_subForest} (currentRoot:rest)
+            | _rootLabel == currentRoot = currentRootTree
+            | otherwise = go (findTreeMatching (head rest) _subForest) rest
 
-getcurrDirTree :: FileSystem -> Tree File
+findTreeMatching :: File -> [Tree File] -> Tree File
+findTreeMatching file (node@Node {rootLabel=_rootLabel}:rest)
+    | file == _rootLabel = node
+    | otherwise = findTreeMatching file rest
+
+-- needs to be fully recursive (i.e. no "go" function) so that we can build up the entire root file-tree
+replaceCurrDirTreeInRoot :: FileSystem -> Tree File -> Tree File
+replaceCurrDirTreeInRoot FileSystem {root=_root, currDir=_currDir} currDirTree = 
