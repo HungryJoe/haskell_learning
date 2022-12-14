@@ -9,20 +9,17 @@ data File = File{size :: Int, name :: String} deriving (Eq, Show)
 data FileSystem = FileSystem{root :: Tree File, currDir :: [File]}
 type CommandBlock = [String]
 
--- Very buggy
-splitAtPred :: (a -> Bool) -> [a] -> [[a]]
-splitAtPred _ [] = []
-splitAtPred pred xs
-    | null second = [first]
-    | null recur = [first, second]
-    | null first = (head second:head recur) : tail recur
-    | otherwise = first : ((head second : head recur) : tail recur)
-    where (first, second) = break pred xs
-          recur = splitAtPred pred (tail second)
+chunkAroundPred :: (a -> Bool) -> [a] -> [[a]]
+chunkAroundPred _ [] = []
+chunkAroundPred pred (x:xs)
+    | not (null recur) && pred (head $ head recur) = [x] : recur
+    | not (null recur) = (x : head recur) : tail recur
+    | otherwise = [x] : recur
+    where recur = chunkAroundPred pred xs
 
 parseFile :: [String] -> Tree File
 parseFile lines' = root $ foldl treeFolder FileSystem{root=rootNode, currDir=[rootLabel rootNode]} commands
-    where (rootCmd:commands) = map (map $ drop 2) $ splitAtPred ((=='$') . head) lines'
+    where (rootCmd:commands) = map (map $ drop 2) $ chunkAroundPred ((=='$') . head) lines'
           rootNode = Node{rootLabel=File{size=0,name="/"}, subForest=[]}
           treeFolder :: FileSystem -> CommandBlock -> FileSystem
           treeFolder fs ("ls":contents) = fs{root=replaceCurrDirTreeInRoot fs $ parseLS (getCurrDirTree fs) contents}
@@ -42,6 +39,7 @@ parseEntry line = File {size=size, name=name}
 
 parseCD :: FileSystem -> String -> [File]
 parseCD fs@FileSystem {currDir=_currDir} ".." = tail _currDir
+parseCD _ "/" = [File {size=0, name="/"}]
 -- Assume that a directory named `dir` exists in  `last _currDir`
 parseCD fs@FileSystem {root=_root, currDir=_currDir} childDir = _currDir ++ [rootLabel childDirTree]
     where childDirTree = findTreeMatching File {size=0, name=childDir} $ subForest $ getCurrDirTree fs
