@@ -43,7 +43,7 @@ parseEntry line = File {size=size, name=name}
             | otherwise = (read firstHalf, secondHalf)
 
 parseCD :: FileSystem -> String -> [File]
-parseCD fs@FileSystem {currDir=_currDir} ".." = tail _currDir
+parseCD fs@FileSystem {currDir=_currDir} ".." = init _currDir
 parseCD _ "/" = [File {size=0, name="/"}]
 -- Assume that a directory named `dir` exists in  `last _currDir`
 parseCD fs@FileSystem {root=_root, currDir=_currDir} childDir = _currDir ++ [rootLabel childDirTree]
@@ -51,9 +51,10 @@ parseCD fs@FileSystem {root=_root, currDir=_currDir} childDir = _currDir ++ [roo
 
 getCurrDirTree :: FileSystem -> Tree File
 getCurrDirTree FileSystem {root=_root, currDir=_currDir} = go _root _currDir
-    where go currentRootTree@Node {rootLabel=_rootLabel, subForest=_subForest} (currentRoot:rest)
-            | _rootLabel == currentRoot = currentRootTree
-            | otherwise = go (findTreeMatching (head rest) _subForest) rest
+    where go Node {rootLabel=_rootLabel, subForest=_subForest} (rootDir:childDir:rest)
+            | _rootLabel == rootDir = go (findTreeMatching childDir _subForest) (childDir:rest)
+          go currRoot@Node {rootLabel=_rootLabel, subForest=_subForest} [rootDir]
+            | _rootLabel == rootDir = currRoot
 
 findTreeMatching :: File -> [Tree File] -> Tree File
 findTreeMatching file (node@Node {rootLabel=_rootLabel}:rest)
@@ -61,7 +62,6 @@ findTreeMatching file (node@Node {rootLabel=_rootLabel}:rest)
     | otherwise = findTreeMatching file rest
 findTreeMatching file [] = error $ "Couldn't find: " ++ show file
 
--- I think there's a bug here where the wrong directory is being replaced
 replaceCurrDirTreeInRoot :: FileSystem -> Tree File -> Tree File
 replaceCurrDirTreeInRoot FileSystem {root=node@Node {rootLabel=_rootLabel, subForest=_subForest}, currDir=(rootDir:childDir:dirs)} currDirTree
     | _rootLabel == rootDir = node{subForest=replace childDirTree recur _subForest}
