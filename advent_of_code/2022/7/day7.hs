@@ -16,8 +16,10 @@ main = do
     let fileName = head args
     fileContents <- readFile fileName
     let fileSystem = parseFile $ lines fileContents
-    let score = calculateScore fileSystem
-    print score
+    let score1 = calculateScore1 fileSystem
+    let score2 = calculateScore2 fileSystem
+    print score1
+    print score2
 
 chunkAroundPred :: (a -> Bool) -> [a] -> [[a]]
 chunkAroundPred _ [] = []
@@ -85,8 +87,16 @@ replace toReplace replacement (x:xs)
     | toReplace == x = replacement:xs
     | otherwise = x : replace toReplace replacement xs
 
-calculateScore :: FileSystem -> Int
-calculateScore FileSystem {root=_root, currDir=_} = sum $ filter (<=100000) $ flattenNoLeaves $ calculateDirectorySizes _root
+calculateScore1 :: FileSystem -> Int
+calculateScore1 FileSystem {root=_root, currDir=_} = sum $ filter (<=100000) $ flattenNoLeaves $ calculateDirectorySizes _root
+
+calculateScore2 :: FileSystem -> Int
+calculateScore2 FileSystem {root=_root, currDir=_} = minimum $ filter (>=sizeToFree) $ flattenNoLeaves sizeTree
+    where sizeToFree =  sizeNeeded - freeSize
+          freeSize = totalDiskSize - rootLabel sizeTree
+          sizeNeeded = 30000000
+          totalDiskSize = 70000000
+          sizeTree = calculateDirectorySizes _root
 
 flattenNoLeaves :: Tree a -> [a]
 flattenNoLeaves Node {rootLabel=_, subForest=[]} = []
