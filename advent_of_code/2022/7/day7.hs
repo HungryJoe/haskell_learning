@@ -1,12 +1,12 @@
 import Data.Tree
-import Data.List (elemIndex, find, findIndex)
+import Data.List (elemIndex, find, findIndex, stripPrefix)
 import Data.Maybe (fromJust, isJust)
 import Data.String (IsString(fromString))
 import Data.Sequence (chunksOf)
 
 -- Assume that files of size 0 are directories
 data File = File{size :: Int, name :: String} deriving (Eq, Show)
-data FileSystem = FileSystem{root :: Tree File, currDir :: [File]}
+data FileSystem = FileSystem{root :: Tree File, currDir :: [File]} deriving Show
 type CommandBlock = [String]
 
 chunkAroundPred :: (a -> Bool) -> [a] -> [[a]]
@@ -17,14 +17,19 @@ chunkAroundPred pred (x:xs)
     | otherwise = [x] : recur
     where recur = chunkAroundPred pred xs
 
-parseFile :: [String] -> Tree File
-parseFile lines' = root $ foldl treeFolder FileSystem{root=rootNode, currDir=[rootLabel rootNode]} commands
-    where (rootCmd:commands) = map (map $ drop 2) $ chunkAroundPred ((=='$') . head) lines'
-          rootNode = Node{rootLabel=File{size=0,name="/"}, subForest=[]}
-          treeFolder :: FileSystem -> CommandBlock -> FileSystem
-          treeFolder fs ("ls":contents) = fs{root=replaceCurrDirTreeInRoot fs $ parseLS (getCurrDirTree fs) contents}
-          treeFolder fs ['c':'d':' ':arg] = fs{currDir=parseCD fs arg}
-          treeFolder fs cmd = error $ show cmd
+parseFile :: [String] -> FileSystem
+parseFile lines' = foldl treeFolder FileSystem{root=rootNode, currDir=[rootLabel rootNode]} $ parseIntoCommands lines'
+    where rootNode = Node{rootLabel=File{size=0,name="/"}, subForest=[]}
+
+parseIntoCommands :: [String] -> [CommandBlock]
+parseIntoCommands lines' = map mapper $ chunkAroundPred ((==commandStart) . take 2) lines'
+    where mapper l = fromJust (stripPrefix commandStart $ head l) : tail l
+          commandStart = "$ "
+
+treeFolder :: FileSystem -> CommandBlock -> FileSystem
+treeFolder fs ("ls":contents) = fs{root=replaceCurrDirTreeInRoot fs $ parseLS (getCurrDirTree fs) contents}
+treeFolder fs ['c':'d':' ':arg] = fs{currDir=parseCD fs arg}
+treeFolder fs cmd = error $ show cmd
 
 parseLS :: Tree File -> [String] -> Tree File
 parseLS dir entries = Node {rootLabel=rootLabel dir, subForest=subForest dir ++ map (createNodeFromFile . parseEntry) entries}
@@ -32,7 +37,7 @@ parseLS dir entries = Node {rootLabel=rootLabel dir, subForest=subForest dir ++ 
 
 parseEntry :: String -> File
 parseEntry line = File {size=size, name=name}
-    where (firstHalf, secondHalf) = splitAt (fromJust $ elemIndex ' ' line) line
+    where (firstHalf, ' ':secondHalf) = splitAt (fromJust $ elemIndex ' ' line) line
           (size, name)
             | firstHalf == "dir" = (0, secondHalf)
             | otherwise = (read firstHalf, secondHalf)
@@ -54,10 +59,12 @@ findTreeMatching :: File -> [Tree File] -> Tree File
 findTreeMatching file (node@Node {rootLabel=_rootLabel}:rest)
     | file == _rootLabel = node
     | otherwise = findTreeMatching file rest
+findTreeMatching file [] = error $ "Couldn't find: " ++ show file
 
+-- I think there's a bug here where the wrong directory is being replaced
 replaceCurrDirTreeInRoot :: FileSystem -> Tree File -> Tree File
-replaceCurrDirTreeInRoot FileSystem {root=Node {rootLabel=_rootLabel, subForest=_subForest}, currDir=(rootDir:childDir:dirs)} currDirTree
-    | _rootLabel == rootDir = Node {rootLabel=_rootLabel, subForest=replace childDirTree recur _subForest}
+replaceCurrDirTreeInRoot FileSystem {root=node@Node {rootLabel=_rootLabel, subForest=_subForest}, currDir=(rootDir:childDir:dirs)} currDirTree
+    | _rootLabel == rootDir = node{subForest=replace childDirTree recur _subForest}
     where recur =  replaceCurrDirTreeInRoot FileSystem {root=childDirTree, currDir=childDir:dirs} currDirTree
           childDirTree = findTreeMatching childDir _subForest
 replaceCurrDirTreeInRoot FileSystem {root=Node {rootLabel=_rootLabel, subForest=_subForest}, currDir=[rootDir]} currDirTree
