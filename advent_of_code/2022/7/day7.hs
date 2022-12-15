@@ -3,11 +3,21 @@ import Data.List (elemIndex, find, findIndex, stripPrefix)
 import Data.Maybe (fromJust, isJust)
 import Data.String (IsString(fromString))
 import Data.Sequence (chunksOf)
+import qualified Data.List.NonEmpty as NE
+import System.Environment (getArgs)
 
 -- Assume that files of size 0 are directories
 data File = File{size :: Int, name :: String} deriving (Eq, Show)
 data FileSystem = FileSystem{root :: Tree File, currDir :: [File]} deriving Show
 type CommandBlock = [String]
+
+main = do
+    args <- getArgs
+    let fileName = head args
+    fileContents <- readFile fileName
+    let fileSystem = parseFile $ lines fileContents
+    let score = calculateScore fileSystem
+    print score
 
 chunkAroundPred :: (a -> Bool) -> [a] -> [[a]]
 chunkAroundPred _ [] = []
@@ -74,3 +84,15 @@ replace :: Eq a => a -> a -> [a] -> [a]
 replace toReplace replacement (x:xs)
     | toReplace == x = replacement:xs
     | otherwise = x : replace toReplace replacement xs
+
+calculateScore :: FileSystem -> Int
+calculateScore FileSystem {root=_root, currDir=_} = sum $ filter (<=100000) $ flattenNoLeaves $ calculateDirectorySizes _root
+
+flattenNoLeaves :: Tree a -> [a]
+flattenNoLeaves Node {rootLabel=_, subForest=[]} = []
+flattenNoLeaves Node {rootLabel=_rootLabel, subForest=_subForest} = _rootLabel : concatMap flattenNoLeaves _subForest
+
+calculateDirectorySizes :: Tree File -> Tree Int
+calculateDirectorySizes n@Node {rootLabel=file, subForest=[]} = Node {rootLabel=size file, subForest=[]}
+calculateDirectorySizes n@Node {rootLabel=_rootLabel, subForest=_subForest} = Node {rootLabel=sum $ map rootLabel subForestSizes, subForest=subForestSizes}
+    where subForestSizes = map calculateDirectorySizes _subForest
