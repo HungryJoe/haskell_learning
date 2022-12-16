@@ -21,20 +21,20 @@ main = do
     print score1
     print score2
 
-chunkAroundPred :: (a -> Bool) -> [a] -> [[a]]
-chunkAroundPred _ [] = []
-chunkAroundPred pred (x:xs)
-    | not (null recur) && pred (head $ head recur) = [x] : recur
-    | not (null recur) = (x : head recur) : tail recur
+-- Chunks will never be empty
+chunkBeforePred :: (a -> Bool) -> [a] -> [[a]]
+chunkBeforePred _ [] = []
+chunkBeforePred pred (x:xs)
+    | not (null recur) && not (pred (head $ head recur)) = (x : head recur) : tail recur
     | otherwise = [x] : recur
-    where recur = chunkAroundPred pred xs
+    where recur = chunkBeforePred pred xs
 
 parseFile :: [String] -> FileSystem
 parseFile lines' = foldl treeFolder FileSystem{root=rootNode, currDir=[rootLabel rootNode]} $ parseIntoCommands lines'
     where rootNode = Node{rootLabel=File{size=0,name="/"}, subForest=[]}
 
 parseIntoCommands :: [String] -> [CommandBlock]
-parseIntoCommands lines' = map mapper $ chunkAroundPred ((==commandStart) . take 2) lines'
+parseIntoCommands lines' = map mapper $ chunkBeforePred ((==commandStart) . take 2) lines'
     where mapper l = fromJust (stripPrefix commandStart $ head l) : tail l
           commandStart = "$ "
 
@@ -57,30 +57,27 @@ parseEntry line = File {size=size, name=name}
 parseCD :: FileSystem -> String -> [File]
 parseCD fs@FileSystem {currDir=_currDir} ".." = init _currDir
 parseCD _ "/" = [File {size=0, name="/"}]
--- Assume that a directory named `dir` exists in  `last _currDir`
 parseCD fs@FileSystem {root=_root, currDir=_currDir} childDir = _currDir ++ [rootLabel childDirTree]
     where childDirTree = findTreeMatching File {size=0, name=childDir} $ subForest $ getCurrDirTree fs
 
 getCurrDirTree :: FileSystem -> Tree File
 getCurrDirTree FileSystem {root=_root, currDir=_currDir} = go _root _currDir
-    where go Node {rootLabel=_rootLabel, subForest=_subForest} (rootDir:childDir:rest)
-            | _rootLabel == rootDir = go (findTreeMatching childDir _subForest) (childDir:rest)
-          go currRoot@Node {rootLabel=_rootLabel, subForest=_subForest} [rootDir]
+    where go currRoot@Node {rootLabel=_rootLabel, subForest=_subForest} [rootDir]
             | _rootLabel == rootDir = currRoot
+          go Node {rootLabel=_rootLabel, subForest=_subForest} (rootDir:childDir:rest)
+            | _rootLabel == rootDir = go (findTreeMatching childDir _subForest) (childDir:rest)
 
-findTreeMatching :: File -> [Tree File] -> Tree File
-findTreeMatching file (node@Node {rootLabel=_rootLabel}:rest)
-    | file == _rootLabel = node
-    | otherwise = findTreeMatching file rest
-findTreeMatching file [] = error $ "Couldn't find: " ++ show file
+findTreeMatching :: Eq a => a -> [Tree a] -> Tree a
+findTreeMatching file trees = trees !! index
+    where index = fromJust $ findIndex ((==file) . rootLabel) trees
 
 replaceCurrDirTreeInRoot :: FileSystem -> Tree File -> Tree File
+replaceCurrDirTreeInRoot FileSystem {root=Node {rootLabel=_rootLabel, subForest=_subForest}, currDir=[rootDir]} currDirTree
+    | _rootLabel == rootDir = currDirTree
 replaceCurrDirTreeInRoot FileSystem {root=node@Node {rootLabel=_rootLabel, subForest=_subForest}, currDir=(rootDir:childDir:dirs)} currDirTree
     | _rootLabel == rootDir = node{subForest=replace childDirTree recur _subForest}
     where recur =  replaceCurrDirTreeInRoot FileSystem {root=childDirTree, currDir=childDir:dirs} currDirTree
           childDirTree = findTreeMatching childDir _subForest
-replaceCurrDirTreeInRoot FileSystem {root=Node {rootLabel=_rootLabel, subForest=_subForest}, currDir=[rootDir]} currDirTree
-    | _rootLabel == rootDir = currDirTree
 
 replace :: Eq a => a -> a -> [a] -> [a]
 replace toReplace replacement (x:xs)
@@ -103,6 +100,6 @@ flattenNoLeaves Node {rootLabel=_, subForest=[]} = []
 flattenNoLeaves Node {rootLabel=_rootLabel, subForest=_subForest} = _rootLabel : concatMap flattenNoLeaves _subForest
 
 calculateDirectorySizes :: Tree File -> Tree Int
-calculateDirectorySizes n@Node {rootLabel=file, subForest=[]} = Node {rootLabel=size file, subForest=[]}
-calculateDirectorySizes n@Node {rootLabel=_rootLabel, subForest=_subForest} = Node {rootLabel=sum $ map rootLabel subForestSizes, subForest=subForestSizes}
+calculateDirectorySizes Node {rootLabel=file, subForest=[]} = Node {rootLabel=size file, subForest=[]}
+calculateDirectorySizes Node {rootLabel=_rootLabel, subForest=_subForest} = Node {rootLabel=sum $ map rootLabel subForestSizes, subForest=subForestSizes}
     where subForestSizes = map calculateDirectorySizes _subForest
