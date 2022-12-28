@@ -1,10 +1,20 @@
-import Data.Set (Set, fromList, insert, empty)
+import Data.Set (Set, fromList, insert, empty, elems, size, singleton)
 import Control.Monad.Writer (Writer, mapWriter, runWriter, MonadWriter (writer, tell), foldM)
+import System.Environment (getArgs)
 
 data Direction = DUp | DDown | DLeft | DRight deriving (Eq, Show)
 data Move = Move{dir :: Direction, mag :: Int} deriving (Eq, Show)
 data Point = Point{x :: Int, y :: Int} deriving (Eq, Ord, Show)
-data Rope = Rope{head' :: Point, tail' :: Point} deriving (Show)
+type Rope = [Point]
+
+main = do
+    args <- getArgs
+    fileContents <- readFile $ head args
+    let moves = parseFile $ lines fileContents
+    let result1 = executeMoves 2 moves
+    let result2 = executeMoves 10 moves
+    print $ calculateScore result1
+    print $ calculateScore result2
 
 parseFile :: [String] -> [Move]
 parseFile = map parseLine
@@ -16,23 +26,24 @@ parseLine (d:' ':m)
     | d == 'R' = Move{dir=DRight, mag=read m}
     | d == 'D' = Move{dir=DDown, mag=read m}
 
-executeMoves :: [Move] -> Writer (Set Point) Rope
-executeMoves = foldM executeMove origin
+executeMoves :: Int -> [Move] -> Writer (Set Point) Rope
+executeMoves n = foldM executeMove (originN n)
 
-origin :: Rope
-origin = Rope{head'=Point{x=0,y=0}, tail'=Point{x=0,y=0}}
+originN :: Int -> Rope
+originN n = replicate n Point {x=0, y=0}
 
 executeMove :: Rope -> Move -> Writer (Set Point) Rope
-executeMove r Move{dir=_, mag=0} = writer (r, fromList [tail' r])
-executeMove Rope {head'=_head', tail'=_tail'} m@Move{dir=_dir, mag=_mag} = mapWriter addTail $ executeMove Rope{head'=newHead, tail'=_tail' `moveTowards` newHead} m{mag=_mag - 1}
+executeMove r Move{dir=_, mag=0} = writer (r, singleton $ last r)
+executeMove (head':rest) m@Move{dir=_dir, mag=_mag} = mapWriter (addTail $ last rest) $ executeMove newRope m{mag=_mag - 1}
     where newHead
-            | _dir == DUp = _head'{y=y _head' + 1}
-            | _dir == DLeft = _head'{x=x _head' - 1}
-            | _dir == DRight = _head'{x=x _head' + 1}
-            | _dir == DDown = _head'{y=y _head' - 1}
+            | _dir == DUp = head'{y=y head' + 1}
+            | _dir == DLeft = head'{x=x head' - 1}
+            | _dir == DRight = head'{x=x head' + 1}
+            | _dir == DDown = head'{y=y head' - 1}
+          newRope = scanl (flip moveTowards) newHead rest
 
-addTail :: (Rope, Set Point) -> (Rope, Set Point)
-addTail (r'@Rope {tail'=_tail'}, tailSet) = (r', insert _tail' tailSet)
+addTail :: Point -> (Rope, Set Point) -> (Rope, Set Point)
+addTail newTail (r', tailSet) = (r', insert newTail tailSet)
 
 moveTowards :: Point -> Point -> Point
 moveTowards oldTail@Point {x=oTX, y=oTY} newHead@Point {x=nHX, y=nHY}
@@ -42,4 +53,5 @@ moveTowards oldTail@Point {x=oTX, y=oTY} newHead@Point {x=nHX, y=nHY}
     | otherwise = Point{x=oTX `moveTowards1D` nHX, y=oTY `moveTowards1D` nHY}
     where moveTowards1D toShift towards = toShift + signum (towards - toShift)
 
--- calculateScore :: Set Point -> Int
+calculateScore :: Writer (Set Point) Rope -> Int
+calculateScore = size . snd . runWriter
